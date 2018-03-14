@@ -1,6 +1,6 @@
-/* tcp_ client.c */ 
+/* tcp_ client.c */
 /* Programmed by Adarsh Sethi */
-/* February 21, 2018 */     
+/* February 21, 2018 */
 
 #include <stdio.h>          /* for standard I/O functions */
 #include <stdlib.h>         /* for exit */
@@ -9,6 +9,7 @@
 #include <sys/socket.h>     /* for socket, connect, send, and recv */
 #include <netinet/in.h>     /* for sockaddr_in */
 #include <unistd.h>         /* for close */
+#include "header.h"
 
 #define STRING_SIZE 1024
 
@@ -25,17 +26,22 @@ int main(void) {
 
    char sentence[STRING_SIZE];  /* send message */
    char modifiedSentence[STRING_SIZE]; /* receive message */
-   unsigned int msg_len;  /* length of message */                      
+   unsigned int msg_len;  /* length of message */
    int bytes_sent, bytes_recd; /* number of bytes sent or received */
-  
+
    /* open a socket */
+   struct Header *head = malloc(sizeof(struct Header));
+   head->sequence = 2;
+   head->count = 2;
+
+   printf("Header size: %i\n", sizeof(struct Header));
 
    if ((sock_client = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0) {
       perror("Client: can't open stream socket");
       exit(1);
    }
 
-   /* Note: there is no need to initialize local client address information 
+   /* Note: there is no need to initialize local client address information
             unless you want to specify a specific local port
             (in which case, do it the same way as in udpclient.c).
             The local address initialization and binding is done automatically
@@ -63,14 +69,14 @@ int main(void) {
    server_addr.sin_port = htons(server_port);
 
     /* connect to the server */
- 		
-   if (connect(sock_client, (struct sockaddr *) &server_addr, 
+
+   if (connect(sock_client, (struct sockaddr *) &server_addr,
                                     sizeof (server_addr)) < 0) {
       perror("Client: can't connect to server");
       close(sock_client);
       exit(1);
    }
-  
+
    /* user interface */
 
    printf("Please input a sentence:\n");
@@ -78,17 +84,25 @@ int main(void) {
    msg_len = strlen(sentence) + 1;
 
    /* send message */
-   
+
+   bytes_sent = send(sock_client, head, sizeof(struct Header), 0);
    bytes_sent = send(sock_client, sentence, msg_len, 0);
 
    /* get response from server */
-  
-   bytes_recd = recv(sock_client, modifiedSentence, STRING_SIZE, 0); 
 
-   printf("\nThe response from server is:\n");
-   printf("%s\n\n", modifiedSentence);
+   //bytes_recd = recv(sock_client, modifiedSentence, STRING_SIZE, 0);
+
+   // if(bytes_recd < 0){
+   //   perror("There was an error upon receiving");
+   //   close(sock_client);
+   //   exit(1);
+   // }
+   //
+   // printf("\nThe response from server is:\n");
+   // printf("%s\n\n", modifiedSentence);
 
    /* close the socket */
 
    close (sock_client);
+   free(head);
 }

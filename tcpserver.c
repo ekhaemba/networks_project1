@@ -1,6 +1,6 @@
 /* tcpserver.c */
 /* Programmed by Adarsh Sethi */
-/* February 21, 2018 */    
+/* February 21, 2018 */
 
 #include <ctype.h>          /* for toupper */
 #include <stdio.h>          /* for standard I/O functions */
@@ -9,8 +9,9 @@
 #include <sys/socket.h>     /* for socket, bind, listen, accept */
 #include <netinet/in.h>     /* for sockaddr_in */
 #include <unistd.h>         /* for close */
+#include "header.h"
 
-#define STRING_SIZE 1024   
+#define STRING_SIZE 1024
 
 /* SERV_TCP_PORT is the port number on which the server listens for
    incoming requests from clients. You should change this to a different
@@ -35,23 +36,24 @@ int main(void) {
    char sentence[STRING_SIZE];  /* receive message */
    char modifiedSentence[STRING_SIZE]; /* send message */
    unsigned int msg_len;  /* length of message */
-   int bytes_sent, bytes_recd; /* number of bytes sent or received */
+   int bytes_header, bytes_sentence; /* number of bytes sent or received */
    unsigned int i;  /* temporary loop variable */
 
+   struct Header *received_header = malloc(sizeof(struct Header));
    /* open a socket */
 
    if ((sock_server = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0) {
       perror("Server: can't open stream socket");
-      exit(1);                                                
+      exit(1);
    }
 
    /* initialize server address information */
-    
+
    memset(&server_addr, 0, sizeof(server_addr));
    server_addr.sin_family = AF_INET;
    server_addr.sin_addr.s_addr = htonl (INADDR_ANY);  /* This allows choice of
                                         any host interface, if more than one
-                                        are present */ 
+                                        are present */
    server_port = SERV_TCP_PORT; /* Server will listen on this port */
    server_addr.sin_port = htons(server_port);
 
@@ -62,7 +64,7 @@ int main(void) {
       perror("Server: can't bind to local address");
       close(sock_server);
       exit(1);
-   }                     
+   }
 
    /* listen for incoming requests from clients */
 
@@ -72,46 +74,56 @@ int main(void) {
       exit(1);
    }
    printf("I am here to listen ... on port %hu\n\n", server_port);
-  
+
    client_addr_len = sizeof (client_addr);
 
    /* wait for incoming connection requests in an indefinite loop */
 
+   unsigned char expect_header = 1;
    for (;;) {
 
-      sock_connection = accept(sock_server, (struct sockaddr *) &client_addr, 
+      sock_connection = accept(sock_server, (struct sockaddr *) &client_addr,
                                          &client_addr_len);
                      /* The accept function blocks the server until a
                         connection request comes from a client */
       if (sock_connection < 0) {
-         perror("Server: accept() error\n"); 
+         perror("Server: accept() error\n");
          close(sock_server);
          exit(1);
       }
- 
+
       /* receive the message */
+      bytes_header = recv(sock_connection, received_header, sizeof(struct Header), 0);
+      bytes_sentence = recv(sock_connection, sentence, STRING_SIZE, 0);
 
-      bytes_recd = recv(sock_connection, sentence, STRING_SIZE, 0);
+      if(bytes_header < 0 || bytes_sentence < 0){
+        perror("There was an error upon receiving");
+        close(sock_connection);
+        exit(1);
+      }
 
-      if (bytes_recd > 0){
-         printf("Received Sentence is:\n");
-         printf("%s", sentence);
-         printf("\nwith length %d\n\n", bytes_recd);
+      else if (bytes_header > 0 && bytes_sentence > 0){
+           printf("Received the header\n");
+           printf("Sequence: %i, Data Length: %i\n", received_header->sequence, received_header->count);
 
-        /* prepare the message to send */
+           printf("Received Sentence is:\n");
+           printf("%s", sentence);
+           printf("\nwith length %d\n\n", bytes_sentence);
 
-         msg_len = bytes_recd;
+          /* prepare the message to send */
 
-         for (i=0; i<msg_len; i++)
-            modifiedSentence[i] = toupper (sentence[i]);
+           msg_len = bytes_sentence;
 
-         /* send message */
- 
-         bytes_sent = send(sock_connection, modifiedSentence, msg_len, 0);
+           for (i=0; i<msg_len; i++)
+              modifiedSentence[i] = toupper (sentence[i]);
+
+           /* send message */
+
+           //bytes_sent = send(sock_connection, modifiedSentence, msg_len, 0);
       }
 
       /* close the socket */
-
-      close(sock_connection);
-   } 
+   }
+   close(sock_connection);
+   free(received_header);
 }
