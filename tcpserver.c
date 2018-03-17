@@ -38,6 +38,8 @@ int main(void) {
    unsigned int msg_len;  /* length of message */
    int bytes_header, bytes_sentence; /* number of bytes sent or received */
    unsigned int i;  /* temporary loop variable */
+   unsigned short server_packet_count, total_data_bytes_recieved;
+   FILE *fp;
 
    struct Header *received_header = malloc(sizeof(struct Header));
    /* open a socket */
@@ -79,7 +81,9 @@ int main(void) {
 
    /* wait for incoming connection requests in an indefinite loop */
 
-   unsigned char expect_header = 1;
+   server_packet_count = 0;
+   total_data_bytes_recieved = 0;
+   short finished_executing = 0;
    for (;;) {
 
       sock_connection = accept(sock_server, (struct sockaddr *) &client_addr,
@@ -91,39 +95,41 @@ int main(void) {
          close(sock_server);
          exit(1);
       }
+      fp = fopen("test1-out.txt", "w+");
 
-      /* receive the message */
-      bytes_header = recv(sock_connection, received_header, sizeof(struct Header), 0);
-      bytes_sentence = recv(sock_connection, sentence, STRING_SIZE, 0);
+      while(finished_executing != 1){
+        /* receive the message */
+        bytes_header = recv(sock_connection, received_header, sizeof(struct Header), 0);
+        bytes_sentence = recv(sock_connection, sentence, STRING_SIZE, 0);
 
-      if(bytes_header < 0 || bytes_sentence < 0){
-        perror("There was an error upon receiving");
-        close(sock_connection);
-        exit(1);
+        if(bytes_header < 0 || bytes_sentence < 0){
+          perror("There was an error upon receiving");
+          close(sock_connection);
+          exit(1);
+        }
+
+        if (bytes_header > 0){
+             printf("Packet %i received with %i data bytes\n", received_header->sequence, bytes_sentence);
+             server_packet_count += 1;
+             total_data_bytes_recieved += bytes_sentence;
+
+             if(received_header->sequence == 0){
+               finished_executing = 1;
+             }else{
+               if(fp){
+                 fwrite(sentence, 1, bytes_sentence, fp);
+               }
+             }
+        }
       }
-
-      else if (bytes_header > 0 && bytes_sentence > 0){
-           printf("Received the header\n");
-           printf("Sequence: %i, Data Length: %i\n", received_header->sequence, received_header->count);
-
-           printf("Received Sentence is:\n");
-           printf("%s", sentence);
-           printf("\nwith length %d\n\n", bytes_sentence);
-
-          /* prepare the message to send */
-
-           msg_len = bytes_sentence;
-
-           for (i=0; i<msg_len; i++)
-              modifiedSentence[i] = toupper (sentence[i]);
-
-           /* send message */
-
-           //bytes_sent = send(sock_connection, modifiedSentence, msg_len, 0);
-      }
+      printf("End of Transmission Packet with sequence number %i received with %i data bytes\n", received_header->sequence, received_header->count);
+      printf("Number of packets received: %i\n", server_packet_count);
+      printf("Total number of data bytes received: %i\n", total_data_bytes_recieved);
 
       /* close the socket */
+      close(sock_connection);
+      free(received_header);
+      break;
    }
-   close(sock_connection);
-   free(received_header);
+
 }

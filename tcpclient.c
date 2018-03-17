@@ -9,6 +9,7 @@
 #include <sys/socket.h>     /* for socket, connect, send, and recv */
 #include <netinet/in.h>     /* for sockaddr_in */
 #include <unistd.h>         /* for close */
+#include <time.h>           /* for nanosleep */
 #include "header.h"
 
 #define STRING_SIZE 1024
@@ -25,16 +26,22 @@ int main(void) {
    unsigned short server_port;  /* Port number used by server (remote port) */
 
    char sentence[STRING_SIZE];  /* send message */
-   char modifiedSentence[STRING_SIZE]; /* receive message */
+   //char modifiedSentence[STRING_SIZE]; /* receive message */
    unsigned int msg_len;  /* length of message */
    int bytes_sent, bytes_recd; /* number of bytes sent or received */
+   FILE *fp;
+   size_t nread;
+   int client_packet_count, total_data_bytes_transmitted;
+   struct timespec tim, tim2;
 
+   //Sleep for 500000000 nanoseconds = 500ms
+   tim.tv_sec  = 0;
+   tim.tv_nsec = 500*100000L;
    /* open a socket */
    struct Header *head = malloc(sizeof(struct Header));
-   head->sequence = 2;
-   head->count = 2;
+   head->sequence = 0;
 
-   printf("Header size: %i\n", sizeof(struct Header));
+   printf("Header size: %lu\n", sizeof(struct Header));
 
    if ((sock_client = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0) {
       perror("Client: can't open stream socket");
@@ -79,14 +86,59 @@ int main(void) {
 
    /* user interface */
 
-   printf("Please input a sentence:\n");
-   scanf("%s", sentence);
-   msg_len = strlen(sentence) + 1;
+  //Open the text file to send
+  fp = fopen("test1.txt", "r");
+  //Set counts to 0
+  client_packet_count = 0;
+  total_data_bytes_transmitted = 0;
+  //If it successfully opened then start reading
+  if(fp){
+    /*
+    Read 80 bytes from the text file, newlines included
+    If we read less than 80 bytes it means we are at the end of the file
+    Next packets will be an EOF pair
+    */
+    while((nread = fread(sentence, 1, 80, fp)) > 0){
+      //If you throw an error shut it down
+      if(ferror(fp)){
+        perror("Threw a file error");
+        fclose(fp);
+        close(sock_client);
+        exit(1);
+      }
 
-   /* send message */
+      msg_len = strlen(sentence);
+      head->sequence = head->sequence + 1;
+      head->count = nread;
+      send(sock_client, head, sizeof(struct Header), 0);
+      bytes_sent = send(sock_client, sentence, nread, 0);
+      printf("Packet %i transmitted with %i data bytes\n", head->sequence, head->count);
+      client_packet_count += 1;
+      total_data_bytes_transmitted += bytes_sent;
 
-   bytes_sent = send(sock_client, head, sizeof(struct Header), 0);
-   bytes_sent = send(sock_client, sentence, msg_len, 0);
+      if(nanosleep(&tim , &tim2) < 0 )
+      {
+         printf("Nano sleep system call failed \n");
+         return -1;
+      }
+    }
+
+    head->sequence = 0;
+    head->count = 0;
+    send(sock_client, head, sizeof(struct Header), 0);
+    bytes_sent = send(sock_client, sentence, 0, 0);
+
+    printf("End of Transmission Packet with sequence number %i transmitted with %i data bytes\n", head->sequence, head->count);
+    printf("Number of packets received: %i\n", client_packet_count);
+    printf("Total number of data bytes received: %i\n", total_data_bytes_transmitted);
+  }
+
+  fclose(fp);
+
+
+  /* send message */
+
+
 
    /* get response from server */
 
