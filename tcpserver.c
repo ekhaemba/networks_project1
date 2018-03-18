@@ -152,8 +152,8 @@ int main(void) {
         bytes_sentence = send(sock_connection, sentence, 0, 0);
 
         printf("End of Transmission Packet with sequence number %i transmitted with %i data bytes\n", head->sequence, head->count);
-        printf("Number of packets received: %i\n", server_packet_count);
-        printf("Total number of data bytes received: %i\n", total_data_bytes_transmitted);
+        printf("Number of packets transmitted: %i\n", server_packet_count);
+        printf("Total number of data bytes transmitted: %i\n", total_data_bytes_transmitted);
       }
 
 ///
