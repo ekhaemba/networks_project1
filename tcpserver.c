@@ -150,6 +150,9 @@ int main(void) {
         head->count = 0;
         send(sock_connection, head, sizeof(struct Header), 0);
         bytes_sentence = send(sock_connection, sentence, 0, 0);
+        
+        server_packet_count += 1;
+        total_data_bytes_transmitted += bytes_sentence;
 
         printf("End of Transmission Packet with sequence number %i transmitted with %i data bytes\n", head->sequence, head->count);
         printf("Number of packets transmitted: %i\n", server_packet_count);
