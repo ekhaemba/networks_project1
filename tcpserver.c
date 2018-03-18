@@ -9,6 +9,7 @@
 #include <sys/socket.h>     /* for socket, bind, listen, accept */
 #include <netinet/in.h>     /* for sockaddr_in */
 #include <unistd.h>         /* for close */
+#include <time.h>           /* for nanosleep */
 #include "header.h"
 
 #define STRING_SIZE 1024
@@ -36,12 +37,19 @@ int main(void) {
    char sentence[STRING_SIZE];  /* receive message */
    char modifiedSentence[STRING_SIZE]; /* send message */
    unsigned int msg_len;  /* length of message */
-   int bytes_header, bytes_sentence; /* number of bytes sent or received */
    unsigned int i;  /* temporary loop variable */
-   unsigned short server_packet_count, total_data_bytes_recieved;
+   int bytes_sentence;
+   size_t nread;
+   unsigned short server_packet_count, total_data_bytes_transmitted;
    FILE *fp;
 
-   struct Header *received_header = malloc(sizeof(struct Header));
+   struct Header *head = malloc(sizeof(struct Header));
+   struct timespec tim, tim2;
+   head->sequence = 0;
+
+   //Sleep for 500000000 nanoseconds = 500ms
+   tim.tv_sec  = 0;
+   tim.tv_nsec = 500*100000L;
    /* open a socket */
 
    if ((sock_server = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0) {
@@ -82,8 +90,9 @@ int main(void) {
    /* wait for incoming connection requests in an indefinite loop */
 
    server_packet_count = 0;
-   total_data_bytes_recieved = 0;
+   total_data_bytes_transmitted = 0;
    short finished_executing = 0;
+
    for (;;) {
 
       sock_connection = accept(sock_server, (struct sockaddr *) &client_addr,
@@ -95,40 +104,64 @@ int main(void) {
          close(sock_server);
          exit(1);
       }
-      fp = fopen("test1-out.txt", "w+");
 
-      while(finished_executing != 1){
-        /* receive the message */
-        bytes_header = recv(sock_connection, received_header, sizeof(struct Header), 0);
-        bytes_sentence = recv(sock_connection, sentence, STRING_SIZE, 0);
+      bytes_sentence = recv(sock_connection, sentence, STRING_SIZE, 0);
 
-        if(bytes_header < 0 || bytes_sentence < 0){
-          perror("There was an error upon receiving");
-          close(sock_connection);
-          exit(1);
-        }
-
-        if (bytes_header > 0){
-             printf("Packet %i received with %i data bytes\n", received_header->sequence, bytes_sentence);
-             server_packet_count += 1;
-             total_data_bytes_recieved += bytes_sentence;
-
-             if(received_header->sequence == 0){
-               finished_executing = 1;
-             }else{
-               if(fp){
-                 fwrite(sentence, 1, bytes_sentence, fp);
-               }
-             }
-        }
+      if(bytes_sentence < 0){
+        perror("File name receive error\n");
+        close(sock_connection);
+        exit(1);
       }
-      printf("End of Transmission Packet with sequence number %i received with %i data bytes\n", received_header->sequence, received_header->count);
-      printf("Number of packets received: %i\n", server_packet_count);
-      printf("Total number of data bytes received: %i\n", total_data_bytes_recieved);
+
+      fp = fopen(sentence, "r");
+
+      if(fp){
+        /*
+        Read 80 bytes from the text file, newlines included
+        If we read less than 80 bytes it means we are at the end of the file
+        Next packets will be an EOF pair
+        */
+        while((nread = fread(sentence, 1, 80, fp)) > 0){
+          //If you throw an error shut it down
+          if(ferror(fp)){
+            perror("Threw a file error");
+            fclose(fp);
+            close(sock_connection);
+            exit(1);
+          }
+
+          msg_len = strlen(sentence);
+          head->sequence = head->sequence + 1;
+          head->count = nread;
+          send(sock_connection, head, sizeof(struct Header), 0);
+          bytes_sentence = send(sock_connection, sentence, nread, 0);
+          printf("Packet %i transmitted with %i data bytes\n", head->sequence, head->count);
+          server_packet_count += 1;
+          total_data_bytes_transmitted += bytes_sentence;
+
+          if(nanosleep(&tim , &tim2) < 0 )
+          {
+             printf("Nano sleep system call failed \n");
+             return -1;
+          }
+        }
+
+        head->sequence = 0;
+        head->count = 0;
+        send(sock_connection, head, sizeof(struct Header), 0);
+        bytes_sentence = send(sock_connection, sentence, 0, 0);
+
+        printf("End of Transmission Packet with sequence number %i transmitted with %i data bytes\n", head->sequence, head->count);
+        printf("Number of packets received: %i\n", server_packet_count);
+        printf("Total number of data bytes received: %i\n", total_data_bytes_transmitted);
+      }
+
+///
+///
 
       /* close the socket */
       close(sock_connection);
-      free(received_header);
+      free(head);
       break;
    }
 
