@@ -120,46 +120,39 @@ int main(void) {
             close(sock_server);
             exit(1);
           }
-          //Assemble and send packet
-          msg_len = strlen(sentence);
-          head.sequence = expectedACK;
-          head.count = nread;
-          strcpy(head.data, sentence);
-          printf("Sending sentence: %s\n", head.data);
+         //Assemble data packet
+         msg_len = strlen(sentence);
+         head.sequence = expectedACK;
+         head.count = nread;
+         strcpy(head.data, sentence);
 
-          sendto(sock_server, &head, sizeof(struct HeaderUDP), 0, (struct sockaddr *) &client_addr, sizeof (client_addr));
+         //Send data packet
+         sendto(sock_server, &head, sizeof(struct HeaderUDP), 0, (struct sockaddr *) &client_addr, sizeof (client_addr));
 
-          //Wait for ACK
-
+          //Wait for ACK stage
           while(1){
             bytes_recd = recvfrom(sock_server, &receivedACK, sizeof(short int), 0, (struct sockaddr *) &client_addr, &client_addr_len);
-            if(bytes_recd <= 0){
+            if(bytes_recd <= 0){//A timeout occurred
                printf("Timeout, Retransmitting\n");
                sendto(sock_server, &head, sizeof(struct HeaderUDP), 0, (struct sockaddr *) &client_addr, sizeof (client_addr));
                continue;
             }
-            else if(expectedACK != receivedACK){
+            else if(expectedACK != receivedACK){//Received incorrect ACK
                continue;
             }
-            else{
+            else{//Correct ACK received go to next data packet
                expectedACK = 1 - receivedACK;
                break;
             }
           }
         }
+        //We finished transmitting all of the data packets
+        //Send EOT packet
 
         head.sequence = 0;
         head.count = 0;
         strcpy(head.data,"");
         sendto(sock_server, &head, sizeof(struct HeaderUDP), 0, (struct sockaddr *) &client_addr, sizeof (client_addr));
-        // bytes_sentence = send(sock_connection, sentence, 0, 0);
-        
-        // server_packet_count += 1;
-        // total_data_bytes_transmitted += bytes_sentence;
-
-        // printf("End of Transmission Packet with sequence number %i transmitted with %i data bytes\n", head->sequence, head->count);
-        // printf("Number of packets transmitted: %i\n", server_packet_count);
-        // printf("Total number of data bytes transmitted: %i\n", total_data_bytes_transmitted);
       }
 
       /* prepare the message to send */

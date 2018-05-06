@@ -127,32 +127,36 @@ int main(void) {
    scanf("%s", sentence);
    msg_len = strlen(sentence) + 1;
 
+   unsigned int server_addr_len = sizeof(server_addr);
    /* send message */
   
-   bytes_sent = sendto(sock_client, sentence, msg_len, 0, (struct sockaddr *) &server_addr, sizeof (server_addr));
+   bytes_sent = sendto(sock_client, sentence, msg_len, 0, (struct sockaddr *) &server_addr, sizeof(server_addr));
 
    /* get response from server */
    
-   unsigned int server_addr_len = sizeof(server_addr);
+   
    fp = fopen("out.txt", "w+");
    if(fp){
       for(;;){
          printf("Waiting for response from server...\n");
          bytes_recd = recvfrom(sock_client, &head, sizeof(struct HeaderUDP), 0, (struct sockaddr *) &server_addr, &server_addr_len);
-         if(head.count == 0){
+         if(head.count == 0){//If we received an EOT packet break out of the loop
             printf("End of transmission packet\n");
             break;
          }
-         else if(head.sequence != nextACK){
+         //------
+         //Simulate packet loss here as other if statements
+         //------
+         else if(head.sequence != nextACK){//If the sequence number is duplicate, send an ACK.
             printf("Wrong sequence. Sending ACK\n");
             short int pseudoACK = 1 - nextACK;
-            bytes_sent = sendto(sock_client, &pseudoACK, sizeof(short int), 0, (struct sockaddr *) &server_addr, sizeof (server_addr));
+            bytes_sent = sendto(sock_client, &pseudoACK, sizeof(short int), 0, (struct sockaddr *) &server_addr, sizeof(server_addr));
          }
-         else{
+         else{//If this is the correct ACK Deliver the data and transition states
             printf("Correct ACK. Delivering Data\n");
             strcpy(sentence, head.data);
             fwrite(sentence, 1, head.count, fp);
-            bytes_sent = sendto(sock_client, &nextACK, sizeof(short int), 0, (struct sockaddr *) &server_addr, sizeof (server_addr));
+            bytes_sent = sendto(sock_client, &nextACK, sizeof(short int), 0, (struct sockaddr *) &server_addr, sizeof(server_addr));
             nextACK = 1 - nextACK;
          }
       }
