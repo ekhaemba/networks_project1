@@ -6,5 +6,5 @@ struct HeaderUDP
 {
   unsigned short sequence;
   unsigned short count;
-  char data[1024];	
+  char data[256];	
 };

@@ -33,7 +33,7 @@ int main(void) {
    char modifiedSentence[STRING_SIZE]; /* receive message */
    unsigned int msg_len;  /* length of message */
    int bytes_sent, bytes_recd; /* number of bytes sent or received */
-   struct HeaderUDP *head = malloc(sizeof(struct HeaderUDP));
+   struct HeaderUDP head;
 
    /* open a socket */
 
@@ -118,12 +118,15 @@ int main(void) {
             (struct sockaddr *) &server_addr, sizeof (server_addr));
 
    /* get response from server */
-  
+   
+   unsigned int server_addr_len = sizeof(server_addr);
    printf("Waiting for response from server...\n");
-   bytes_recd = recvfrom(sock_client, head, sizeof(struct HeaderUDP), 0,
-                (struct sockaddr *) 0, (int *) 0);
-   printf("\nThe response from server is:\n");
-   printf("%s\n\n", head->data);
+   bytes_recd = recvfrom(sock_client, &head, sizeof(struct HeaderUDP), 0, (struct sockaddr *) &server_addr, &server_addr_len);
+   
+   char str[100] = "";
+   strcpy(str, head.data);
+   printf("\nThe response from server is: %s\n", str);
+   // printf("%s\n\n", head.data);
 
    /* close the socket */
 

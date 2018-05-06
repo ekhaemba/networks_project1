@@ -42,7 +42,7 @@ int main(void) {
    unsigned short server_packet_count, total_data_bytes_transmitted;
    FILE *fp;
 
-   struct HeaderUDP *head = malloc(sizeof(struct HeaderUDP));
+   struct HeaderUDP head;
    struct HeaderUDP *recv_head = malloc(sizeof(struct HeaderUDP));
    struct timeval timeout;
    short int expectedACK = 0;
@@ -126,11 +126,12 @@ int main(void) {
           }
           //Assemble and send packet
           msg_len = strlen(sentence);
-          head->sequence = 1 - recv_head->sequence;
-          head->count = nread;
-          strcpy(head->data, sentence);
+          head.sequence = expectedACK;
+          head.count = nread;
+          strcpy(head.data, sentence);
+          printf("Sending sentence: %s\n", head.data);
 
-          sendto(sock_server, head, sizeof(struct HeaderUDP), 0, (struct sockaddr *) &server_addr, sizeof (server_addr));
+          sendto(sock_server, &head, sizeof(struct HeaderUDP), 0, (struct sockaddr *) &client_addr, sizeof (client_addr));
 
           //Wait for ACK
 
@@ -138,7 +139,7 @@ int main(void) {
             bytes_recd = recvfrom(sock_server, &receivedACK, sizeof(short int), 0, (struct sockaddr *) &client_addr, &client_addr_len);
             if(bytes_recd <= 0){
                printf("Timeout, Retransmitting\n");
-               sendto(sock_server, head, sizeof(struct HeaderUDP), 0, (struct sockaddr *) &server_addr, sizeof (server_addr));
+               sendto(sock_server, &head, sizeof(struct HeaderUDP), 0, (struct sockaddr *) &client_addr, sizeof (client_addr));
                continue;
             }
             else if(expectedACK != receivedACK){
@@ -180,7 +181,6 @@ int main(void) {
 
       /* send message */
       close(sock_server);
-      free(head);
       free(recv_head);
       break;
    }
