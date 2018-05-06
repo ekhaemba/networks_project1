@@ -9,8 +9,10 @@
 #include <sys/socket.h>     /* for socket, sendto, and recvfrom */
 #include <netinet/in.h>     /* for sockaddr_in */
 #include <unistd.h>         /* for close */
+#include "header.h"
 
 #define STRING_SIZE 1024
+#define SERV_UDP_PORT 45000
 
 int main(void) {
 
@@ -31,7 +33,8 @@ int main(void) {
    char modifiedSentence[STRING_SIZE]; /* receive message */
    unsigned int msg_len;  /* length of message */
    int bytes_sent, bytes_recd; /* number of bytes sent or received */
-  
+   struct HeaderUDP *head = malloc(sizeof(struct HeaderUDP));
+
    /* open a socket */
 
    if ((sock_client = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0) {
@@ -79,26 +82,33 @@ int main(void) {
 
    /* initialize server address information */
 
-   printf("Enter hostname of server: ");
-   scanf("%s", server_hostname);
-   if ((server_hp = gethostbyname(server_hostname)) == NULL) {
+   char *p, s[100];
+  int n;
+
+  printf("Enter timeout n: ");
+  while (fgets(s, sizeof(s), stdin)) {
+    n = strtol(s, &p, 10);
+    if (p == s || *p != '\n') {
+      printf("Please enter an integer: ");
+    } else break;
+  }
+
+   if ((server_hp = gethostbyname("localhost")) == NULL) {
       perror("Client: invalid server hostname\n");
       close(sock_client);
       exit(1);
    }
-   printf("Enter port number for server: ");
-   scanf("%hu", &server_port);
 
    /* Clear server address structure and initialize with server address */
    memset(&server_addr, 0, sizeof(server_addr));
    server_addr.sin_family = AF_INET;
    memcpy((char *)&server_addr.sin_addr, server_hp->h_addr,
                                     server_hp->h_length);
-   server_addr.sin_port = htons(server_port);
+   server_addr.sin_port = htons(SERV_UDP_PORT);
 
    /* user interface */
 
-   printf("Please input a sentence:\n");
+   printf("Please input a filename:\n");
    scanf("%s", sentence);
    msg_len = strlen(sentence) + 1;
 
@@ -110,10 +120,10 @@ int main(void) {
    /* get response from server */
   
    printf("Waiting for response from server...\n");
-   bytes_recd = recvfrom(sock_client, modifiedSentence, STRING_SIZE, 0,
+   bytes_recd = recvfrom(sock_client, head, sizeof(struct HeaderUDP), 0,
                 (struct sockaddr *) 0, (int *) 0);
    printf("\nThe response from server is:\n");
-   printf("%s\n\n", modifiedSentence);
+   printf("%s\n\n", head->data);
 
    /* close the socket */
 
