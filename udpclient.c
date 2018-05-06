@@ -10,9 +10,19 @@
 #include <netinet/in.h>     /* for sockaddr_in */
 #include <unistd.h>         /* for close */
 #include "header.h"
+#include <time.h>
 
 #define STRING_SIZE 1024
 #define SERV_UDP_PORT 45000
+
+short simulateLoss(float lossRate){
+   if((float)rand()/RAND_MAX > lossRate){
+      return 1;
+   }
+   else{
+      return 0;
+   }
+}
 
 int main(void) {
 
@@ -33,7 +43,12 @@ int main(void) {
    char modifiedSentence[STRING_SIZE]; /* receive message */
    unsigned int msg_len;  /* length of message */
    int bytes_sent, bytes_recd; /* number of bytes sent or received */
+   FILE *fp;
    struct HeaderUDP head;
+   short int nextACK = 0;
+
+   srand(time(NULL));//Seed the random number generator
+
 
    /* open a socket */
 
@@ -114,19 +129,35 @@ int main(void) {
 
    /* send message */
   
-   bytes_sent = sendto(sock_client, sentence, msg_len, 0,
-            (struct sockaddr *) &server_addr, sizeof (server_addr));
+   bytes_sent = sendto(sock_client, sentence, msg_len, 0, (struct sockaddr *) &server_addr, sizeof (server_addr));
 
    /* get response from server */
    
    unsigned int server_addr_len = sizeof(server_addr);
-   printf("Waiting for response from server...\n");
-   bytes_recd = recvfrom(sock_client, &head, sizeof(struct HeaderUDP), 0, (struct sockaddr *) &server_addr, &server_addr_len);
-   
-   char str[100] = "";
-   strcpy(str, head.data);
-   printf("\nThe response from server is: %s\n", str);
-   // printf("%s\n\n", head.data);
+   fp = fopen("out.txt", "w+");
+   if(fp){
+      for(;;){
+         printf("Waiting for response from server...\n");
+         bytes_recd = recvfrom(sock_client, &head, sizeof(struct HeaderUDP), 0, (struct sockaddr *) &server_addr, &server_addr_len);
+         if(head.count == 0){
+            printf("End of transmission packet\n");
+            break;
+         }
+         else if(head.sequence != nextACK){
+            printf("Wrong sequence. Sending ACK\n");
+            short int pseudoACK = 1 - nextACK;
+            bytes_sent = sendto(sock_client, &pseudoACK, sizeof(short int), 0, (struct sockaddr *) &server_addr, sizeof (server_addr));
+         }
+         else{
+            printf("Correct ACK. Delivering Data\n");
+            strcpy(sentence, head.data);
+            fwrite(sentence, 1, head.count, fp);
+            bytes_sent = sendto(sock_client, &nextACK, sizeof(short int), 0, (struct sockaddr *) &server_addr, sizeof (server_addr));
+            nextACK = 1 - nextACK;
+         }
+      }
+   }
+   // printf("%s\n\n", head.data); //For reasons that are beyond me I can not print out the character array from the head object directly.
 
    /* close the socket */
 

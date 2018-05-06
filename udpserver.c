@@ -43,7 +43,6 @@ int main(void) {
    FILE *fp;
 
    struct HeaderUDP head;
-   struct HeaderUDP *recv_head = malloc(sizeof(struct HeaderUDP));
    struct timeval timeout;
    short int expectedACK = 0;
    short int receivedACK;
@@ -105,10 +104,7 @@ int main(void) {
       //From now on timeouts exist
       setsockopt(sock_server, SOL_SOCKET, SO_RCVTIMEO,(const void *) &timeout, sizeof(timeout));
 
-      printf("Received Sentence is: %s\nwith length %d\n\n", recv_head->data, bytes_recd);
-
       fp = fopen(sentence, "r");
-      recv_head->sequence = 0;
       if(fp){
         /*
         Read 80 bytes from the text file, newlines included
@@ -150,23 +146,12 @@ int main(void) {
                break;
             }
           }
-
-          // send(sock_connection, head, sizeof(struct Header), 0);
-          // bytes_sentence = send(sock_connection, sentence, nread, 0);
-          // printf("Packet %i transmitted with %i data bytes\n", head->sequence, head->count);
-          //server_packet_count += 1;
-          //total_data_bytes_transmitted += bytes_sentence;
-
-          // if(nanosleep(&tim , &tim2) < 0 )
-          // {
-          //    printf("Nano sleep system call failed \n");
-          //    return -1;
-          // }
         }
 
-        // head->sequence = 0;
-        // head->count = 0;
-        // send(sock_connection, head, sizeof(struct Header), 0);
+        head.sequence = 0;
+        head.count = 0;
+        strcpy(head.data,"");
+        sendto(sock_server, &head, sizeof(struct HeaderUDP), 0, (struct sockaddr *) &client_addr, sizeof (client_addr));
         // bytes_sentence = send(sock_connection, sentence, 0, 0);
         
         // server_packet_count += 1;
@@ -181,7 +166,6 @@ int main(void) {
 
       /* send message */
       close(sock_server);
-      free(recv_head);
       break;
    }
 }
