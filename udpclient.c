@@ -154,14 +154,13 @@ int main(int argc, char** argv) {
    fp = fopen("out.txt", "w+");
    if(fp){
       for(;;){
-         printf("Waiting for response from server...\n");
          bytes_recd = recvfrom(sock_client, &head, sizeof(struct HeaderUDP), 0, (struct sockaddr *) &server_addr, &server_addr_len);
          if(head.count == 0){//If we received an EOT packet break out of the loop
             printf("End of transmission packet with sequence number %d received with %d data bytes\n", head.sequence, head.count);
             break;
          }
 
-         else if(simulateLoss(packLoss)){
+         else if(simulateLoss(packLoss)){//Lost the packet
           printf("Packet %d lost\n", head.sequence);
           dropped += 1;
          }
