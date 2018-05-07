@@ -24,6 +24,17 @@ short simulateLoss(float lossRate){
    }
 }
 
+void debrief(int recd_success, int delivered, int duplicates, int dropped, int total_packets, int acks_success, int acks_dropped, int acks_total){
+  printf("Number of data packets received successfully: %d\n",recd_success);
+  printf("Total number of data bytes which are delivered to the user: %d\n",delivered);
+  printf("Total number of duplicate data packets received: %d\n", duplicates);
+  printf("Number of data packets received but dropped due to loss: %d\n", dropped);
+  printf("Total number of data packets received: %d\n", total_packets);
+  printf("Number of ACKs transmitted without loss: %d\n", acks_success);
+  printf("Number of ACKs generated but dropped due to loss: %d\n", acks_dropped);
+  printf("Total number of ACKs generated: %d\n", acks_total);
+}
+
 int main(int argc, char** argv) {
 
    int sock_client;  /* Socket used by client */ 
@@ -47,10 +58,13 @@ int main(int argc, char** argv) {
    struct HeaderUDP head;
    short int nextACK = 0;
    float packLoss, ackLoss;
+   int recd_success,  delivered,  duplicates,  dropped,  acks_success,  acks_dropped;
+   recd_success = delivered = duplicates = dropped = acks_success = acks_dropped = 0;
 
    srand(time(NULL));//Seed the random number generator
 
-   if(argc != 3){//Incorrect number of arguments
+   if(argc != 3){
+   //Incorrect number of arguments
     perror("Format: ./udpclient <packet_loss> <ack_loss>\n");
     exit(1);
    }
@@ -143,42 +157,54 @@ int main(int argc, char** argv) {
          printf("Waiting for response from server...\n");
          bytes_recd = recvfrom(sock_client, &head, sizeof(struct HeaderUDP), 0, (struct sockaddr *) &server_addr, &server_addr_len);
          if(head.count == 0){//If we received an EOT packet break out of the loop
-            printf("End of transmission packet\n");
+            printf("End of transmission packet with sequence number %d received with %d data bytes\n", head.sequence, head.count);
             break;
          }
 
          else if(simulateLoss(packLoss)){
-          printf("Lost packet \n");
+          printf("Packet %d lost\n", head.sequence);
+          dropped += 1;
          }
+
          //------
          //Simulate packet loss
          //------
          else if(head.sequence != nextACK){//If the sequence number is duplicate, send an ACK.
-            printf("Wrong sequence. Sending ACK\n");
+            printf("Duplicate packet %d received with %d data bytes\n", head.sequence, head.count);
             short int pseudoACK = 1 - nextACK;
+            duplicates += 1;
             if(simulateLoss(ackLoss)){
-              printf("Lost ACK wrong seq\n");
+              printf("ACK %d lost\n", head.sequence);
+              acks_dropped += 1;
             }
             else{
+              printf("ACK %d transmitted\n", head.sequence);
               bytes_sent = sendto(sock_client, &pseudoACK, sizeof(short int), 0, (struct sockaddr *) &server_addr, sizeof(server_addr));
+              acks_success += 1;
             }
          }
          else{//If this is the correct ACK Deliver the data and transition states
-            printf("Correct ACK. Delivering Data\n");
+            printf("Packet %d received with %d data bytes\n", head.sequence, head.count);
             strcpy(sentence, head.data);
             fwrite(sentence, 1, head.count, fp);
+            delivered += head.count;
+            recd_success += 1;
             if(simulateLoss(ackLoss)){
-              printf("Lost ACK right seq\n");
+              printf("ACK %d lost\n", head.sequence);
+              acks_dropped += 1;
             }
             else{
+              printf("ACK %d transmitted\n", head.sequence);
               bytes_sent = sendto(sock_client, &nextACK, sizeof(short int), 0, (struct sockaddr *) &server_addr, sizeof(server_addr));
+              acks_success += 1;
             }
             nextACK = 1 - nextACK;
          }
       }
    }
    // printf("%s\n\n", head.data); //For reasons that are beyond me I can not print out the character array from the head object directly.
-
+   printf("\n");
+   debrief(recd_success, delivered, duplicates, dropped, recd_success + duplicates + dropped, acks_success, acks_dropped, acks_dropped + acks_success);
    /* close the socket */
 
    close (sock_client);
