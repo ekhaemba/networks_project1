@@ -21,7 +21,7 @@
 #define SERV_UDP_PORT 45000
 
 
-int main(void) {
+int main(int argc, char** argv) {
 
    int sock_server;  /* Socket on which server listens to clients */
 
@@ -46,16 +46,18 @@ int main(void) {
    struct timeval timeout;
    short int expectedACK = 0;
    short int receivedACK;
-   char *p, s[100];
-  int n;
 
-  printf("Enter timeout n: ");
-  while (fgets(s, sizeof(s), stdin)) {
-    n = strtol(s, &p, 10);
-    if (p == s || *p != '\n') {
-      printf("Please enter an integer: ");
-    } else break;
+  if(argc != 2){//Incorrect number of arguments
+    perror("Format: ./udpserver <timeout_n>\n");
+    exit(1);
   }
+
+  int n = atoi(argv[1]);
+  if(n <=0 || n > 10){
+    perror("<timeout_n> must be between the range 1 <= n <= 10\n");
+    exit(1);
+  }
+
    timeout.tv_sec= 0;
    timeout.tv_usec = (int)pow(10,n);
 
@@ -138,6 +140,7 @@ int main(void) {
                continue;
             }
             else if(expectedACK != receivedACK){//Received incorrect ACK
+               printf("Wrong ACK\n");
                continue;
             }
             else{//Correct ACK received go to next data packet

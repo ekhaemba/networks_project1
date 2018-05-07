@@ -16,7 +16,7 @@
 #define SERV_UDP_PORT 45000
 
 short simulateLoss(float lossRate){
-   if((float)rand()/RAND_MAX > lossRate){
+   if((float)rand()/RAND_MAX < lossRate){
       return 1;
    }
    else{
@@ -24,7 +24,7 @@ short simulateLoss(float lossRate){
    }
 }
 
-int main(void) {
+int main(int argc, char** argv) {
 
    int sock_client;  /* Socket used by client */ 
 
@@ -46,9 +46,22 @@ int main(void) {
    FILE *fp;
    struct HeaderUDP head;
    short int nextACK = 0;
+   float packLoss, ackLoss;
 
    srand(time(NULL));//Seed the random number generator
 
+   if(argc != 3){//Incorrect number of arguments
+    perror("Format: ./udpclient <packet_loss> <ack_loss>\n");
+    exit(1);
+   }
+
+   packLoss = atof(argv[1]);
+   ackLoss = atof(argv[2]);
+
+   if(packLoss < 0 || packLoss > 1 || ackLoss < 0 || ackLoss > 1){//Incorrect range of arguments
+    perror("The loss arguments must be between [0,1)\n");
+    exit(1);
+   }
 
    /* open a socket */
 
@@ -97,17 +110,6 @@ int main(void) {
 
    /* initialize server address information */
 
-   char *p, s[100];
-  int n;
-
-  printf("Enter timeout n: ");
-  while (fgets(s, sizeof(s), stdin)) {
-    n = strtol(s, &p, 10);
-    if (p == s || *p != '\n') {
-      printf("Please enter an integer: ");
-    } else break;
-  }
-
    if ((server_hp = gethostbyname("localhost")) == NULL) {
       perror("Client: invalid server hostname\n");
       close(sock_client);
@@ -144,19 +146,33 @@ int main(void) {
             printf("End of transmission packet\n");
             break;
          }
+
+         else if(simulateLoss(packLoss)){
+          printf("Lost packet \n");
+         }
          //------
-         //Simulate packet loss here as other if statements
+         //Simulate packet loss
          //------
          else if(head.sequence != nextACK){//If the sequence number is duplicate, send an ACK.
             printf("Wrong sequence. Sending ACK\n");
             short int pseudoACK = 1 - nextACK;
-            bytes_sent = sendto(sock_client, &pseudoACK, sizeof(short int), 0, (struct sockaddr *) &server_addr, sizeof(server_addr));
+            if(simulateLoss(ackLoss)){
+              printf("Lost ACK wrong seq\n");
+            }
+            else{
+              bytes_sent = sendto(sock_client, &pseudoACK, sizeof(short int), 0, (struct sockaddr *) &server_addr, sizeof(server_addr));
+            }
          }
          else{//If this is the correct ACK Deliver the data and transition states
             printf("Correct ACK. Delivering Data\n");
             strcpy(sentence, head.data);
             fwrite(sentence, 1, head.count, fp);
-            bytes_sent = sendto(sock_client, &nextACK, sizeof(short int), 0, (struct sockaddr *) &server_addr, sizeof(server_addr));
+            if(simulateLoss(ackLoss)){
+              printf("Lost ACK right seq\n");
+            }
+            else{
+              bytes_sent = sendto(sock_client, &nextACK, sizeof(short int), 0, (struct sockaddr *) &server_addr, sizeof(server_addr));
+            }
             nextACK = 1 - nextACK;
          }
       }
