@@ -20,10 +20,18 @@
 
 #define SERV_UDP_PORT 45000
 
+void debrief(int init_trans, int total_bytes, int retrans, int total_trans, int acks, int timeouts){
+  printf("Number of data packets transmitted: %d\n",init_trans);
+  printf("Total number of data bytes transmitted: %d\n",total_bytes);
+  printf("Total number of retransmissions: %d\n", retrans);
+  printf("Total number of data packets transmitted: %d\n", total_trans);
+  printf("Number of ACKs received: %d\n", acks);
+  printf("Count of how many times timeout expired: %d\n", timeouts);
+}
 
 int main(int argc, char** argv) {
 
-   int sock_server;  /* Socket on which server listens to clients */
+   int sock_server, bytes_recd;  /* Socket on which server listens to clients */
 
    struct sockaddr_in server_addr;  /* Internet address structure that
                                         stores server address */
@@ -34,12 +42,11 @@ int main(int argc, char** argv) {
    unsigned int client_addr_len;  /* Length of client address structure */
 
    char sentence[STRING_SIZE];  /* receive message */
-   char modifiedSentence[STRING_SIZE]; /* send message */
-   unsigned int msg_len;  /* length of message */
-   int bytes_sent, bytes_recd; /* number of bytes sent or received */
+   /* number of bytes sent*/
    unsigned int i;  /* temporary loop variable */
    size_t nread;
-   unsigned short server_packet_count, total_data_bytes_transmitted;
+   int init_packet_count, total_bytes_trans, retrans, acks, timeouts;
+   init_packet_count = total_bytes_trans = retrans = acks = timeouts = 0;
    FILE *fp;
 
    struct HeaderUDP head;
@@ -93,6 +100,8 @@ int main(int argc, char** argv) {
 
    client_addr_len = sizeof (client_addr);
 
+
+   // int init_packet_count, total_bytes, retrans, total_packet_count, acks, timeouts;
    for (;;) {//Wait for call from above state
 
       bytes_recd = recvfrom(sock_server, &sentence, STRING_SIZE, 0, (struct sockaddr *) &client_addr, &client_addr_len);
@@ -123,28 +132,36 @@ int main(int argc, char** argv) {
             exit(1);
           }
          //Assemble data packet
-         msg_len = strlen(sentence);
          head.sequence = expectedACK;
          head.count = nread;
          strcpy(head.data, sentence);
-
+         
          //Send data packet
          sendto(sock_server, &head, sizeof(struct HeaderUDP), 0, (struct sockaddr *) &client_addr, sizeof (client_addr));
+         printf("Packet %d transmitted with %d data bytes\n", head.sequence, head.count);
+         init_packet_count += 1;
+         total_bytes_trans += head.count;
 
           //Wait for ACK stage
           while(1){
             bytes_recd = recvfrom(sock_server, &receivedACK, sizeof(short int), 0, (struct sockaddr *) &client_addr, &client_addr_len);
             if(bytes_recd <= 0){//A timeout occurred
-               printf("Timeout, Retransmitting\n");
+               printf("Timeout expired for packet number %d\n", head.sequence);
                sendto(sock_server, &head, sizeof(struct HeaderUDP), 0, (struct sockaddr *) &client_addr, sizeof (client_addr));
+               printf("Packet %d retransmitted with %d data bytes\n", head.sequence, head.count);
+               retrans += 1;
+               timeouts += 1;
                continue;
             }
             else if(expectedACK != receivedACK){//Received incorrect ACK
-               printf("Wrong ACK\n");
+               printf("ACK %d received\n", receivedACK);
+               acks += 1;
                continue;
             }
             else{//Correct ACK received go to next data packet
+               printf("ACK %d received\n", receivedACK);
                expectedACK = 1 - receivedACK;
+               acks += 1;
                break;
             }
           }
@@ -155,7 +172,11 @@ int main(int argc, char** argv) {
         head.sequence = 0;
         head.count = 0;
         strcpy(head.data,"");
+        printf("End of Transmission Packet with sequence number %d transmitted with %d data bytes\n", head.sequence, head.count);
         sendto(sock_server, &head, sizeof(struct HeaderUDP), 0, (struct sockaddr *) &client_addr, sizeof (client_addr));
+        //Debrief
+        printf("\n");
+        debrief(init_packet_count, total_bytes_trans, retrans, retrans + init_packet_count, acks, timeouts);
       }
 
       /* prepare the message to send */
