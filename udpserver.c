@@ -20,6 +20,14 @@
 
 #define SERV_UDP_PORT 45000
 
+int powah(int base, int power){
+  if(power <= 1){
+    return base;
+  }else{
+    return base*powah(base,power - 1);
+  } 
+}
+
 void debrief(int init_trans, int total_bytes, int retrans, int total_trans, int acks, int timeouts){
   printf("Number of data packets transmitted: %d\n",init_trans);
   printf("Total number of data bytes transmitted: %d\n",total_bytes);
@@ -66,7 +74,7 @@ int main(int argc, char** argv) {
   }
 
    timeout.tv_sec= 0;
-   timeout.tv_usec = (int)pow(10,n);
+   timeout.tv_usec = powah(10,n);
 
    /* open a socket */
 
